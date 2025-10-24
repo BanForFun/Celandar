@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Celandar</title>
+    <script src="dictionary.js"></script>
+    <style>
+        :root {
+            font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+            line-height: 1.5;
+            font-weight: 400;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        h1 {
+            font-size: 3.2em;
+            line-height: 1.1;
+        }
+
+        #app {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        #editable {
+            outline: none;
+            margin-bottom: 2rem;
+        }
+
+        button {
+            border-radius: 8px;
+            border: 1px solid transparent;
+            padding: 0.75em 1.25em;
+            font-size: 1em;
+            font-weight: 500;
+            background-color: #646cff;
+            color: white;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h1>Celandar</h1>
+        <div id="editable" contenteditable="true"></div>
+        <button id="copy">Copy</button>
+    </div>
+
+    <script>
+        const englishKeyboard = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM"
+        const greekKeyboard = ";ςερτυθιοπασδφγηξκλζχψωβνμ:ΣΕΡΤΥΘΙΟΠΑΣΔΦΓΗΞΚΛΖΧΨΩΒΝΜ"
+
+        const greekToEnglish = Object.fromEntries(greekKeyboard.split('')
+            .map((greek, index) => [greek, englishKeyboard[index]]))
+
+        const englishToGreek = Object.fromEntries(englishKeyboard.split('')
+            .map((english, index) => [english, greekKeyboard[index]]))
+
+        const invertKeyboard = {...greekToEnglish, ...englishToGreek}
+
+        const editable = document.getElementById('editable')
+        const copyButton = document.getElementById('copy')
+
+        editable.innerText = new Intl.DateTimeFormat("el-GR", {
+            hour12: false,
+            timeStyle: "short",
+            dateStyle: "full"
+        }).format(new Date()) + "\n\n\n"
+
+        selectAll().collapseToEnd()
+
+        editable.addEventListener('beforeinput', e => {
+            if (e.data === ' ' && onSpace()) e.preventDefault();
+        })
+
+        copyButton.addEventListener('click', () => {
+            selectAll();
+            document.execCommand('copy');
+        });
+
+        function mapCharacters(string, map) {
+            return string.split('').map(map).join('');
+        }
+
+        function selectAll() {
+            editable.focus();
+
+            const selection = window.getSelection();
+            selection.selectAllChildren(editable);
+
+            return selection;
+        }
+
+        function onSpace() {
+            const selection = window.getSelection();
+            if (selection.rangeCount === 0) return false; //Not editing
+
+            const range = selection.getRangeAt(0);
+            if (range.startContainer !== range.endContainer) return false; //Multiline selection
+
+            const { startContainer: node, startOffset, endOffset } = range;
+            if (node.nodeType !== Node.TEXT_NODE) return false;
+
+            const text = node.nodeValue;
+
+            if (startOffset !== endOffset) {
+                const inverted = mapCharacters(range.toString(), l => invertKeyboard[l] ?? l);
+                node.nodeValue = text.substring(0, startOffset) + inverted + text.substring(endOffset);
+
+                const newRange = document.createRange();
+                newRange.setStart(node, startOffset);
+                newRange.setEnd(node, endOffset);
+
+                selection.removeAllRanges()
+                selection.addRange(newRange);
+
+                return true;
+            } else {
+                const offset = startOffset;
+                const leftContent = text.substring(0, offset);
+                const rightContent = text.substring(offset);
+
+                const lastWordMatch = leftContent.match(/\S+(\s*)$/);
+                if (lastWordMatch == null) return true;
+
+                const [lastWord, spaces] = lastWordMatch;
+                let replacement = null;
+
+                if (spaces.length > 0) {
+                    //Double space
+                    replacement = {
+                        consumeInput: true,
+                        text: mapCharacters(lastWord, l => invertKeyboard[l] ?? l)
+                    }
+                } else {
+                    const englishified = mapCharacters(lastWord, l => greekToEnglish[l] ?? l)
+                    if (window.englishWordSet.has(englishified)) {
+                        replacement = {
+                            consumeInput: false,
+                            text: englishified,
+                        }
+                    }
+                }
+
+                if (replacement == null) return false;
+                node.nodeValue = leftContent.substring(0, lastWordMatch.index) + replacement.text + rightContent
+
+                const newRange = document.createRange();
+                newRange.setEnd(node, offset);
+                newRange.collapse()
+
+                selection.removeAllRanges()
+                selection.addRange(newRange);
+
+                return replacement.consumeInput;
+            }
+        }
+    </script>
+</body>
+</html>
