@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Celandar</title>
-    <script src="dictionary.js"></script>
     <style>
         :root {
             font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -130,35 +129,23 @@
                 if (lastWordMatch == null) return true;
 
                 const [lastWord, spaces] = lastWordMatch;
-                let replacement = null;
 
                 if (spaces.length > 0) {
                     //Double space
-                    replacement = {
-                        consumeInput: true,
-                        text: mapCharacters(lastWord, l => invertKeyboard[l] ?? l)
-                    }
-                } else {
-                    const englishified = mapCharacters(lastWord, l => greekToEnglish[l] ?? l)
-                    if (window.englishWordSet.has(englishified)) {
-                        replacement = {
-                            consumeInput: false,
-                            text: englishified,
-                        }
-                    }
+                    const replacement = mapCharacters(lastWord, l => invertKeyboard[l] ?? l)
+                    node.nodeValue = leftContent.substring(0, lastWordMatch.index) + replacement + rightContent
+
+                    const newRange = document.createRange();
+                    newRange.setEnd(node, offset);
+                    newRange.collapse()
+    
+                    selection.removeAllRanges()
+                    selection.addRange(newRange);
+                    
+                    return true;
                 }
 
-                if (replacement == null) return false;
-                node.nodeValue = leftContent.substring(0, lastWordMatch.index) + replacement.text + rightContent
-
-                const newRange = document.createRange();
-                newRange.setEnd(node, offset);
-                newRange.collapse()
-
-                selection.removeAllRanges()
-                selection.addRange(newRange);
-
-                return replacement.consumeInput;
+                return false;
             }
         }
     </script>
